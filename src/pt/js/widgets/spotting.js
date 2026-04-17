@@ -1,8 +1,9 @@
-import '../../css/spotting.css';
+import '../../css/spottingWidget.css';
 
 import {BaseWidget} from './baseWidget.js';
 import {createGrid} from 'ag-grid-enterprise';
 import {writeObjectToClipboard} from '@/utils/clipboardHelpers.js';
+import {CustomCellEditor} from "src/grids/js/genericCellEditor.js";
 
 const SRC_COLUMNS = [
     'benchmarkIsin',
@@ -16,7 +17,7 @@ const SRC_COLUMNS = [
     'isReal',
 ];
 
-const MISSING_KEY = '*MISSING*';
+const MISSING_KEY = '**MISSING**';
 
 function _fmtRefreshTime(raw) {
     if (raw == null || raw === '') return '';
@@ -142,13 +143,12 @@ export class SpottingWidget extends BaseWidget {
             <div class="spot-controls-top">
                 <div class="spot-control-group spot-title-group">
                     <div class="spot-left">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2m0 18a8 8 0 1 1 8-8a8.009 8.009 0 0 1-8 8m1-13h-2v6h6v-2h-4z"/></svg>
                         <p>Spotting</p>
                     </div>
                 </div>
 
                 <div class="spot-control-group spot-mode-group">
-                    <span class="spot-label-text">Level</span>
+                    <span class="spot-label-text"></span>
                     <div id="spot-mode" class="spot-mode-radios">
                         <label class="spot-mode-option">
                             <input type="radio" name="spotMode" value="benchmarkMidPx" checked />
@@ -288,6 +288,7 @@ export class SpottingWidget extends BaseWidget {
         const getPx = engine._getValueGetter('benchmarkMidPx');
         const getYld = engine._getValueGetter('benchmarkMidYld');
         const getRefresh = engine._getValueGetter('benchmarkRefreshTime');
+        const getSide = engine._getValueGetter('hedgeDirection');
         const getSize = engine._getValueGetter('netHedgeSize');
         const getReal = engine._getValueGetter('isReal');
 
@@ -310,6 +311,7 @@ export class SpottingWidget extends BaseWidget {
                     benchmarkMidPx: isin === MISSING_KEY ? null : getPx(i),
                     benchmarkMidYld: isin === MISSING_KEY ? null : getYld(i),
                     benchmarkRefreshTime: isin === MISSING_KEY ? null : getRefresh(i),
+                    hedgeDirection: isin === MISSING_KEY ? null : getRefresh(i),
                     netHedgeSize: 0,
                 };
                 groups.set(isin, g);
@@ -369,21 +371,57 @@ export class SpottingWidget extends BaseWidget {
         const widget = this;
 
         const gridOptions = {
-            theme: 'legacy',
             rowData: [],
             columnDefs: this._buildColumnDefs(),
-            headerHeight: 28,
-            rowHeight: 26,
-            animateRows: false,
             suppressCellFocus: false,
             singleClickEdit: true,
-            stopEditingWhenCellsLoseFocus: true,
-            getRowId: (p) => String(p.data.benchmarkIsin),
+            getRowId: (p) => String(p.data.benchmarkIsin ?? MISSING_KEY),
             defaultColDef: {
-                sortable: true,
+                hide: false,
+                sortingOrder: ['desc', 'asc', null],
+                menuTabs: ["filterMenuTab"],
                 resizable: true,
-                suppressMovable: true,
-                suppressHeaderMenuButton: true,
+                sortable: true,
+                filter: true,
+                editable: false,
+                lockPinned: true,
+                floatingFilter: false,
+                autoHeight: false,
+                wrapText: false,
+                suppressMovable: false,
+                suppressSizeToFit: true,
+                suppressColumnsToolPanel: false,
+                suppressSpanHeaderHeight: true,
+                cellEditor: CustomCellEditor,
+                // suppressKeyboardEvent: (params) => {
+                //     return isArrowKey(params.event);
+                // },
+            },
+            animateRows: false,
+            suppressColumnVirtualisation: false,
+            suppressChangeDetection: false,
+            suppressAggFuncInHeader: true,
+            suppressMaintainUnsortedOrder: true,
+            suppressDragLeaveHidesColumns: true,
+            enableRangeSelection: true,
+            deltaSort: true,
+            suppressAnimationFrame: false,
+            suppressAutoSize: true,
+            suppressTouch: true,
+            suppressColumnMoveAnimation: true,
+            suppressRowHoverHighlight: false,
+            pagination: false,
+            enterNavigatesVerticallyAfterEdit: true,
+            suppressMenuHide: false,
+            suppressScrollOnNewData: true,
+            stopEditingWhenCellsLoseFocus: true,
+            suppressClipboardPaste: true,
+            suppressCutToClipboard: true,
+            copyHeadersToClipboard: false,
+            rowHeight: 28,
+            headerHeight: 32,
+            autoSizeStrategy: {
+                type: 'fitCellContents'
             },
             onCellValueChanged: (ev) => widget._onCellValueChanged(ev),
             onGridReady: (p) => {
@@ -674,6 +712,7 @@ export class SpottingWidget extends BaseWidget {
             benchDescription: 'Description',
             benchmarkIsin: 'ISIN',
             netHedgeSize: 'Net Hedge',
+            hedgeDirection: 'Hedge Direction',
             [priceField]: priceHeader,
             benchmarkRefreshTime: 'Refresh',
         };
@@ -683,6 +722,7 @@ export class SpottingWidget extends BaseWidget {
             benchDescription: r.benchDescription ?? '',
             benchmarkIsin: r.benchmarkIsin ?? '',
             netHedgeSize: r.netHedgeSize ?? 0,
+            hedgeDirection: r.hedgeDirection ?? '',
             [priceField]: r[priceField] ?? '',
             benchmarkRefreshTime: _fmtRefreshTime(r.benchmarkRefreshTime),
         }));
