@@ -4,6 +4,7 @@ import {BaseWidget} from './baseWidget.js';
 import {createGrid} from 'ag-grid-enterprise';
 import {writeObjectToClipboard} from '@/utils/clipboardHelpers.js';
 import {CustomCellEditor} from "src/grids/js/genericCellEditor.js";
+import {PivotEngine} from '@/grids/js/arrow/smartPivot.js';
 
 const SRC_COLUMNS = [
     'benchmarkIsin',
@@ -84,6 +85,8 @@ export class SpottingWidget extends BaseWidget {
         this.edits = new Map();      // isin -> new numeric value (in current priceMode units)
         this.originalByIsin = new Map(); // isin -> {px, yld}
         this.rowData = [];
+
+        this.pivotEngine = null;
     }
 
     // ---------------- Lifecycle ----------------
@@ -95,8 +98,15 @@ export class SpottingWidget extends BaseWidget {
         this._cacheDom();
         this._bindEvents();
         this._buildGrid();
+        this._ensurePivotEngine();
         this._subscribeToEngine();
         this._scheduleRebuild();
+    }
+
+    _ensurePivotEngine() {
+        if (this.pivotEngine) return;
+        if (!this.engine) return;
+        this.pivotEngine = new PivotEngine(this.engine);
     }
 
     onResumeSubscriptions() {
@@ -272,6 +282,9 @@ export class SpottingWidget extends BaseWidget {
         const engine = this.engine;
         if (!engine || !this.gridApi) return;
 
+        this._ensurePivotEngine();
+        if (!this.pivotEngine) return;
+
         const n = engine.numRows() | 0;
         if (!n) {
             this.rowData = [];
@@ -281,71 +294,136 @@ export class SpottingWidget extends BaseWidget {
             return;
         }
 
+        // Pre-filter to active (isReal != 0) rows and normalize isin to MISSING_KEY.
         const getIsin = engine._getValueGetter('benchmarkIsin');
+        const getReal = engine._getValueGetter('isReal');
+
+        const idx = [];
+        for (let i = 0; i < n; i++) {
+            const real = getReal(i);
+            if (real === 0 || real === false) continue;
+            idx.push(i);
+        }
+
+        if (!idx.length) {
+            this.rowData = [];
+            this.originalByIsin = new Map();
+            this._refreshGridData();
+            this._updateApplyEnabled();
+            return;
+        }
+
         const getName = engine._getValueGetter('benchmarkName');
         const getDesc = engine._getValueGetter('benchDescription');
         const getTerm = engine._getValueGetter('benchmarkTerm');
         const getPx = engine._getValueGetter('benchmarkMidPx');
         const getYld = engine._getValueGetter('benchmarkMidYld');
         const getRefresh = engine._getValueGetter('benchmarkRefreshTime');
-        const getSide = engine._getValueGetter('hedgeDirection');
         const getSize = engine._getValueGetter('netHedgeSize');
-        const getReal = engine._getValueGetter('isReal');
 
-        const groups = new Map();
+        const len = idx.length;
+        const isinArr = new Array(len);
+        const nameArr = new Array(len);
+        const descArr = new Array(len);
+        const termArr = new Array(len);
+        const pxArr = new Array(len);
+        const yldArr = new Array(len);
+        const refreshArr = new Array(len);
+        const sizeArr = new Array(len);
 
-        for (let i = 0; i < n; i++) {
-            const real = getReal(i);
-            if (real === 0 || real === false) continue;
-
-            const isinRaw = getIsin(i);
-            const isin = (isinRaw == null || isinRaw === '') ? MISSING_KEY : isinRaw;
-
-            let g = groups.get(isin);
-            if (!g) {
-                g = {
-                    benchmarkIsin: isin,
-                    benchmarkName: isin === MISSING_KEY ? MISSING_KEY : getName(i),
-                    benchDescription: isin === MISSING_KEY ? '' : getDesc(i),
-                    benchmarkTerm: isin === MISSING_KEY ? -Infinity : getTerm(i),
-                    benchmarkMidPx: isin === MISSING_KEY ? null : getPx(i),
-                    benchmarkMidYld: isin === MISSING_KEY ? null : getYld(i),
-                    benchmarkRefreshTime: isin === MISSING_KEY ? null : getRefresh(i),
-                    hedgeDirection: isin === MISSING_KEY ? null : getRefresh(i),
-                    netHedgeSize: 0,
-                };
-                groups.set(isin, g);
-            }
-            const sz = getSize(i);
-            if (sz != null && isFinite(sz)) g.netHedgeSize += Number(sz);
+        for (let k = 0; k < len; k++) {
+            const i = idx[k];
+            const rawIsin = getIsin(i);
+            const isin = (rawIsin == null || rawIsin === '') ? MISSING_KEY : rawIsin;
+            isinArr[k] = isin;
+            nameArr[k] = isin === MISSING_KEY ? MISSING_KEY : getName(i);
+            descArr[k] = isin === MISSING_KEY ? '' : getDesc(i);
+            termArr[k] = isin === MISSING_KEY ? null : getTerm(i);
+            pxArr[k] = isin === MISSING_KEY ? null : getPx(i);
+            yldArr[k] = isin === MISSING_KEY ? null : getYld(i);
+            refreshArr[k] = isin === MISSING_KEY ? null : getRefresh(i);
+            sizeArr[k] = getSize(i);
         }
 
-        // Rebuild originals snapshot (applied state is whatever is currently in engine)
+        const rowsIn = {
+            benchmarkIsin: isinArr,
+            benchmarkName: nameArr,
+            benchDescription: descArr,
+            benchmarkTerm: termArr,
+            benchmarkMidPx: pxArr,
+            benchmarkMidYld: yldArr,
+            benchmarkRefreshTime: refreshArr,
+            netHedgeSize: sizeArr,
+        };
+
+        const aggregations = [
+            {netHedgeSize: {func: 'sum', name: 'netHedgeSize'}},
+            {benchmarkMidPx: {func: 'mean', name: 'benchmarkMidPx'}},
+            {benchmarkMidYld: {func: 'mean', name: 'benchmarkMidYld'}},
+            {benchmarkTerm: {func: 'max', name: 'benchmarkTerm'}},
+            {benchmarkRefreshTime: {func: 'max', name: 'benchmarkRefreshTime'}},
+            {benchmarkName: {func: 'first', name: 'benchmarkName'}},
+            {benchDescription: {func: 'first', name: 'benchDescription'}},
+        ];
+
+        let pivotRows = [];
+        try {
+            const result = this.pivotEngine.compute(rowsIn, {
+                groupBy: ['benchmarkIsin'],
+                aggregations,
+                force: true,
+                GRAND_TOTAL: false,
+            }) || {};
+            pivotRows = Array.isArray(result.rows) ? result.rows : (Array.isArray(result) ? result : []);
+        } catch (err) {
+            console.error('[spotting-pivot]', err);
+            pivotRows = [];
+        }
+
         const originals = new Map();
         const rows = [];
-        for (const g of groups.values()) {
-            originals.set(g.benchmarkIsin, {
-                benchmarkMidPx: g.benchmarkMidPx,
-                benchmarkMidYld: g.benchmarkMidYld,
+        for (const g of pivotRows) {
+            const isin = g.benchmarkIsin ?? MISSING_KEY;
+            const isMissing = isin === MISSING_KEY;
+            const px = isMissing ? null : g.benchmarkMidPx;
+            const yld = isMissing ? null : g.benchmarkMidYld;
+
+            originals.set(isin, {
+                benchmarkMidPx: px,
+                benchmarkMidYld: yld,
             });
 
-            const edited = this.edits.get(g.benchmarkIsin);
-            const row = {...g, _isMissing: g.benchmarkIsin === MISSING_KEY};
+            const row = {
+                benchmarkIsin: isin,
+                benchmarkName: isMissing ? MISSING_KEY : g.benchmarkName,
+                benchDescription: isMissing ? '' : (g.benchDescription ?? ''),
+                benchmarkTerm: isMissing ? null : g.benchmarkTerm,
+                benchmarkMidPx: px,
+                benchmarkMidYld: yld,
+                benchmarkRefreshTime: isMissing ? null : g.benchmarkRefreshTime,
+                netHedgeSize: Number(g.netHedgeSize) || 0,
+                _isMissing: isMissing,
+                _edited: false,
+            };
+
+            const edited = this.edits.get(isin);
             if (edited != null) {
                 row[this.priceMode] = edited;
                 row._edited = true;
-            } else {
-                row._edited = false;
             }
+
             if (this.splitPricing && this.priceMode === 'benchmarkMidPx') {
                 const s = _splitPx(row.benchmarkMidPx);
                 row._handle = s.handle;
                 row._n32 = s.n32;
             }
+
             rows.push(row);
         }
 
         rows.sort((a, b) => {
+            if (a._isMissing && !b._isMissing) return 1;
+            if (b._isMissing && !a._isMissing) return -1;
             const at = a.benchmarkTerm, bt = b.benchmarkTerm;
             if (at == null && bt == null) return 0;
             if (at == null) return 1;
