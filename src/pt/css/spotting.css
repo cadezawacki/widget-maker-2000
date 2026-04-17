@@ -1,0 +1,236 @@
+#spottingWidget {
+    --spot-accent: var(--teal-500);
+    --spot-accent-soft: rgba(45, 212, 191, 0.18);
+    --spot-accent-border: var(--teal-400);
+    --spot-edit-bg: #fff7c2;
+    --spot-edit-bg-dark: rgba(253, 224, 71, 0.18);
+    --spot-edit-text: var(--teal-highlight, #2dd4bf);
+    --spot-border: var(--border-color);
+    --spot-missing: var(--red-500);
+    --spot-disabled-opacity: 0.45;
+    --spot-transition: 0.15s ease;
+
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    user-select: none;
+}
+
+.spot-body {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    gap: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    box-sizing: border-box;
+}
+
+/* ---------- Control panel (matches pivot control panel feel) ---------- */
+.spot-controls {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--spot-border);
+    border-radius: 8px;
+    background: var(--background-surface-color);
+    padding: 6px 10px;
+}
+
+.spot-controls-top {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.spot-control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spot-control-group label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.spot-label-text {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-color);
+    letter-spacing: 0.02em;
+}
+
+.spot-title-group .spot-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--spot-accent);
+}
+
+.spot-title-group p {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-color);
+    letter-spacing: 0.03em;
+}
+
+/* ---------- Mode radios (Price / Yield) ---------- */
+.spot-mode-radios {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--background-color);
+    padding: 3px 8px;
+    border: 1px solid var(--spot-border);
+    border-radius: 6px;
+}
+
+.spot-mode-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-color);
+    cursor: pointer;
+}
+
+.spot-mode-option input[type="radio"] {
+    accent-color: var(--spot-accent);
+}
+
+/* ---------- Split pricing toggle ---------- */
+.spot-split-group .toggle {
+    cursor: pointer;
+    accent-color: var(--spot-accent);
+}
+
+.spot-split-group.spot-disabled {
+    opacity: var(--spot-disabled-opacity);
+    pointer-events: none;
+}
+
+/* ---------- Actions (COPY / CLEAR / APPLY) ---------- */
+.spot-actions-group {
+    margin-left: auto;
+    gap: 6px;
+}
+
+.spot-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--spot-border);
+    background: var(--background-color);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: background var(--spot-transition),
+                color var(--spot-transition),
+                border-color var(--spot-transition),
+                opacity var(--spot-transition),
+                transform var(--spot-transition);
+}
+
+.spot-btn:hover:not(:disabled) {
+    background: var(--spot-accent-soft);
+    border-color: var(--spot-accent-border);
+}
+
+.spot-btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.spot-btn-primary {
+    background: var(--spot-accent);
+    color: #fff;
+    border-color: var(--teal-600);
+}
+
+.spot-btn-primary:hover:not(:disabled) {
+    background: var(--teal-600);
+    color: #fff;
+}
+
+[data-theme="dark"] .spot-btn-primary {
+    background: var(--teal-700);
+    border-color: var(--teal-800);
+}
+
+[data-theme="dark"] .spot-btn-primary:hover:not(:disabled) {
+    background: var(--teal-600);
+}
+
+.spot-btn:disabled,
+.spot-btn.spot-dim {
+    opacity: var(--spot-disabled-opacity);
+    cursor: not-allowed;
+    filter: saturate(40%);
+}
+
+/* Copy icon / check swap */
+.spot-btn .spot-check-icon { display: none; }
+.spot-btn.spot-copied .spot-copy-icon { display: none; }
+.spot-btn.spot-copied .spot-check-icon {
+    display: inline-flex;
+    color: var(--emerald-500, #10b981);
+}
+.spot-btn.spot-copied {
+    background: color-mix(in srgb, var(--emerald-500, #10b981) 15%, transparent);
+    border-color: var(--emerald-500, #10b981);
+    color: var(--emerald-600, #059669);
+}
+
+/* ---------- Grid ---------- */
+.spot-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    border: 1px solid var(--spot-border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+/* Editable price cells — light yellow wash */
+.spot-grid .ag-cell.spot-editable {
+    background-color: var(--spot-edit-bg);
+}
+
+[data-theme="dark"] .spot-grid .ag-cell.spot-editable {
+    background-color: var(--spot-edit-bg-dark);
+}
+
+/* Pending (un-applied) edit — bright teal text */
+.spot-grid .ag-cell.spot-edited {
+    color: var(--spot-edit-text);
+    font-weight: 600;
+}
+
+/* Missing-isin row marker */
+.spot-grid .ag-cell.spot-missing-cell {
+    color: var(--spot-missing);
+    font-weight: 600;
+    font-style: italic;
+}
+
+.spot-grid .ag-cell.spot-numeric {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+.spot-grid .ag-cell.spot-refresh-cell {
+    color: var(--text-faded-1, var(--text-color));
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
