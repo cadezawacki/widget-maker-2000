@@ -40,7 +40,12 @@ function _fmtSize(v) {
 
 function _fmtPx(v) {
     if (v == null || !isFinite(v)) return '';
-    return Number(v).toLocaleString(undefined, {minimumFractionDigits: 3, maximumFractionDigits: 6});
+    return Number(v).toLocaleString(undefined, {minimumFractionDigits: 3, maximumFractionDigits: 3});
+}
+
+function _round3(v) {
+    if (v == null || !isFinite(v)) return v;
+    return Math.round(Number(v) * 1000) / 1000;
 }
 
 function _splitPx(px) {
@@ -132,56 +137,54 @@ export class SpottingWidget extends BaseWidget {
 
     onRender() {
         this.widgetDiv.innerHTML = `
-        <div class="spot-root">
-            <div class="spot-controls">
-                <div class="spot-controls-top">
-                    <div class="spot-control-group spot-title-group">
-                        <label>
-                            <div class="spot-left">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2m0 18a8 8 0 1 1 8-8a8.009 8.009 0 0 1-8 8m1-13h-2v6h6v-2h-4z"/></svg>
-                                <p>Spotting</p>
-                            </div>
-                        </label>
-                    </div>
-
-                    <div class="spot-control-group spot-mode-group">
-                        <span class="spot-label-text">Level</span>
-                        <div id="spot-mode" class="spot-mode-radios">
-                            <label class="spot-mode-option">
-                                <input type="radio" name="spotMode" value="benchmarkMidPx" checked />
-                                <span>Price</span>
-                            </label>
-                            <label class="spot-mode-option">
-                                <input type="radio" name="spotMode" value="benchmarkMidYld" />
-                                <span>Yield</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="spot-control-group spot-split-group">
-                        <label class="spot-label">
-                            <input id="spot-split-toggle" type="checkbox" class="toggle"/>
-                            <span class="spot-label-text">Split Pricing</span>
-                        </label>
-                    </div>
-
-                    <div class="spot-control-group spot-actions-group">
-                        <button id="spot-copy-btn" class="spot-btn spot-btn-secondary" title="Copy grid to clipboard">
-                            <span class="spot-copy-icon" aria-hidden="true">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2m0 16H8V7h11z"/></svg>
-                            </span>
-                            <span class="spot-check-icon" aria-hidden="true">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19L21 7l-1.41-1.41z"/></svg>
-                            </span>
-                            <span class="spot-btn-label">COPY</span>
-                        </button>
-                        <button id="spot-clear-btn" class="spot-btn spot-btn-secondary">CLEAR</button>
-                        <button id="spot-apply-btn" class="spot-btn spot-btn-primary" disabled>APPLY</button>
+        <div class="spot-body">
+        <div class="spot-controls">
+            <div class="spot-controls-top">
+                <div class="spot-control-group spot-title-group">
+                    <div class="spot-left">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2m0 18a8 8 0 1 1 8-8a8.009 8.009 0 0 1-8 8m1-13h-2v6h6v-2h-4z"/></svg>
+                        <p>Spotting</p>
                     </div>
                 </div>
-            </div>
 
-            <div id="spot-grid" class="ag-theme-alpine spot-grid"></div>
+                <div class="spot-control-group spot-mode-group">
+                    <span class="spot-label-text">Level</span>
+                    <div id="spot-mode" class="spot-mode-radios">
+                        <label class="spot-mode-option">
+                            <input type="radio" name="spotMode" value="benchmarkMidPx" checked />
+                            <span>Price</span>
+                        </label>
+                        <label class="spot-mode-option">
+                            <input type="radio" name="spotMode" value="benchmarkMidYld" />
+                            <span>Yield</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="spot-control-group spot-split-group">
+                    <label class="spot-label">
+                        <input id="spot-split-toggle" type="checkbox" class="toggle"/>
+                        <span class="spot-label-text">Split Pricing</span>
+                    </label>
+                </div>
+
+                <div class="spot-control-group spot-actions-group">
+                    <button id="spot-copy-btn" class="spot-btn spot-btn-secondary" title="Copy grid to clipboard">
+                        <span class="spot-copy-icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2m0 16H8V7h11z"/></svg>
+                        </span>
+                        <span class="spot-check-icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19L21 7l-1.41-1.41z"/></svg>
+                        </span>
+                        <span class="spot-btn-label">COPY</span>
+                    </button>
+                    <button id="spot-clear-btn" class="spot-btn spot-btn-secondary">CLEAR</button>
+                    <button id="spot-apply-btn" class="spot-btn spot-btn-primary" disabled>APPLY</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="spot-grid" class="ag-theme-alpine spot-grid"></div>
         </div>
         `;
     }
@@ -222,7 +225,7 @@ export class SpottingWidget extends BaseWidget {
             }
             this.splitPricing = !!e.target.checked;
             this._rebuildColumns();
-            this._refreshGridData();
+            this._rebuild();
         });
 
         page.addEventListener(this.clearBtn, 'click', () => this._handleClear());
@@ -357,6 +360,7 @@ export class SpottingWidget extends BaseWidget {
     _refreshGridData() {
         if (!this.gridApi) return;
         this.gridApi.setGridOption('rowData', this.rowData);
+        this.gridApi.refreshCells({force: true});
     }
 
     // ---------------- Grid setup ----------------
@@ -431,8 +435,14 @@ export class SpottingWidget extends BaseWidget {
                 field: 'netHedgeSize',
                 headerName: 'Net Hedge',
                 type: 'numericColumn',
+                cellDataType: 'number',
+                filter: 'agNumberColumnFilter',
                 minWidth: 110,
                 flex: 1,
+                valueGetter: (p) => {
+                    const v = p?.data?.netHedgeSize;
+                    return (v == null || !isFinite(v)) ? null : Number(v);
+                },
                 valueFormatter: (p) => _fmtSize(p.value),
                 cellClass: 'spot-numeric',
             },
@@ -537,6 +547,7 @@ export class SpottingWidget extends BaseWidget {
         } else {
             newPrice = ev.newValue;
         }
+        newPrice = _round3(newPrice);
 
         if (newPrice == null || !isFinite(newPrice)) {
             // Revert display
